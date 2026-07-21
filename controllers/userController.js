@@ -1,23 +1,8 @@
 function register(req, res) {
   const { name, email, password } = req.body;
 
-  // Initialize globals if they don't exist
-  global.users = global.users || [];
-  global.user_id = global.user_id || 1;
-
-  // Check if email already exists
-  const existingUser = global.users.find(
-    (user) => user.email === email
-  );
-
-  if (existingUser) {
-    return res.status(400).json({
-      error: "User already exists",
-    });
-  }
-
   const newUser = {
-    id: global.user_id++,
+    id: global.users.length + 1,
     name,
     email,
     password,
@@ -25,13 +10,12 @@ function register(req, res) {
 
   global.users.push(newUser);
 
-  res.status(201).json({
-    message: "User registered successfully",
-    user: {
-      id: newUser.id,
+  // User is now logged in
+  global.user_id = newUser.id;
+
+  return res.status(201).json({
       name: newUser.name,
       email: newUser.email,
-    },
   });
 }
 
@@ -50,17 +34,18 @@ function logon(req, res) {
     });
   }
 
-  res.status(200).json({
-    id: user.id,
+  global.user_id = user.id;
+
+  return res.status(200).json({
     name: user.name,
     email: user.email,
   });
 }
 
 function logoff(req, res) {
-  res.status(200).json({
-    message: "Logged off successfully",
-  });
+  global.user_id = null;
+
+  return res.status(200).json({});
 }
 
 module.exports = {
