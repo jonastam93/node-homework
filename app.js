@@ -1,11 +1,25 @@
 const express = require("express");
+
 const timeRouter = require("./routes/timeRoutes");
+const userRouter = require("./routes/userRoutes");
+
+const notFound = require("./middleware/not-found");
+const errorHandler = require("./middleware/error-handler");
+
+// In memory "database"
+global.user_id = null;
+global.users = [];
+global.tasks = [];
+
 
 const app = express();
 
+// Parse JSON 
 app.use(express.json());
 
+// Routes
 app.use("/api", timeRouter);
+app.use("/api/users", userRouter);
 
 app.get("/", (req, res) => {
     res.send("Hello, World!");
@@ -16,6 +30,12 @@ app.post("/testpost", (req, res) => {
         message: "POST route works",
     });
 });
+
+// 404 middleware (must come after routes)
+app.use(notFound);
+
+// Error handler (must be last)
+app.use(errorHandler);
 
 const port = process.env.PORT || 3000;
 
