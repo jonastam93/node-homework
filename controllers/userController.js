@@ -11,7 +11,7 @@ function register(req, res) {
   global.users.push(newUser);
 
   // User is now logged in
-  global.user_id = newUser.id;
+  global.user_id = newUser;
 
   return res.status(201).json({
       name: newUser.name,
@@ -34,7 +34,7 @@ function logon(req, res) {
     });
   }
 
-  global.user_id = user.id;
+  global.user_id = user;
 
   return res.status(200).json({
     name: user.name,
