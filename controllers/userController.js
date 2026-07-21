@@ -1,6 +1,17 @@
 function register(req, res) {
   const { name, email, password } = req.body;
 
+  // Check for duplicate email
+  const existingUser = global.users.find(
+    (user) => user.email === email
+  );
+
+  if (existingUser) {
+    return res.status(400).json({
+      error: "Email already registered",
+    });
+  }
+
   const newUser = {
     id: global.users.length + 1,
     name,
