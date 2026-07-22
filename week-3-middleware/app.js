@@ -32,18 +32,18 @@ app.use((req, res, next) => {
 });
 
 // Build-in middleware
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 // Content-Type validation middleware
 app.use((req, res, next) => {
-  const methodsWithBodies = ["POST", "PUT", "PATCH"];
+  const methodsWithBody = ["POST", "PUT", "PATCH"];
 
   if(
-    methodsWithBodies.includes(req.method) &&
+    methodsWithBody.includes(req.method) &&
     !req.is("application/json")
   ) {
-    return res.status(415).json({
+    return res.status(400).json({
       error: "Content-Type must be application/json",
       requestId: req.requestId,
     });
