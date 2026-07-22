@@ -1,6 +1,7 @@
 function notFound(req, res) {
     return res.status(404).json({
-        error: "Route Not Found",
+        error: "Route not found",
+        requestId: req.requestId,
     });
 }
 
