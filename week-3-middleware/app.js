@@ -27,6 +27,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "no-referrer");
   next();
 });
@@ -64,18 +65,22 @@ app.use((req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  res.status(500).json({
-    error: "Internal Server Error",
+  const statusCode = err.statusCode || 500;
+
+  if (statusCode >= 400 && statusCode < 500) {
+    console.warn(`WARN: ${err.name} - ${err.message}`);
+  } else {
+    console.error(`ERROR: ${err.name} - ${err.message}`);
+  }
+
+  res.status(statusCode).json({
+    error:
+      statusCode === 500
+        ? "Internal Server Error"
+        : err.message,
     requestId: req.requestId,
   });
 });
-
-
-if (require.main === module) {
-  app.listen(3000, () => {
-    console.log("Dog rescue app is listening on port 3000...");
-  });
-}
 
 module.exports = app;
 
