@@ -1,21 +1,28 @@
 const express = require("express");
-const timeRouter = require("./routes/timeRoutes");
+
+const userRouter = require("./routes/userRoutes");
+const notFound = require("./middleware/not-found");
+const errorHandler = require("./middleware/error-handler");
 
 const app = express();
 
+// In memory "database"
+global.user_id = null;
+global.users = [];
+global.tasks = [];
+
+
+// Parse JSON 
 app.use(express.json());
 
-app.use("/api", timeRouter);
+// Routes
+app.use("/api/users", userRouter);
 
-app.get("/", (req, res) => {
-    res.send("Hello, World!");
-});
+// 404 middleware (must come after routes)
+app.use(notFound);
 
-app.post("/testpost", (req, res) => {
-    res.status(200).json({
-        message: "POST route works",
-    });
-});
+// Error handler (must be last)
+app.use(errorHandler);
 
 const port = process.env.PORT || 3000;
 
