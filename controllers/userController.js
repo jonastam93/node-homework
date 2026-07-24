@@ -1,11 +1,35 @@
+const { userSchema } = require("../validation/userSchema");
+
 function register(req, res) {
-  const { name, email, password } = req.body;
+  if (!req.body) {
+    req.body = {};
+  }
+
+  const { error, value } = userSchema.validate(req.body, {
+    abortEarly: false,
+  });
+
+  if (error) {
+    return res.status(400).json({
+      message: error.message,
+    });
+  }
+
+  const existingUser = global.users.find(
+    (user) => user.email === value.email
+  );
+
+  if (existingUser) {
+    return res.status(400).json({
+      message: "User already exists",
+    });
+  }
 
   const newUser = {
     id: global.users.length + 1,
-    name,
-    email,
-    password,
+    name: value.name,
+    email: value.email,
+    password: value.password,
   };
 
   global.users.push(newUser);
