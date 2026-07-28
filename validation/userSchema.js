@@ -15,7 +15,13 @@ const userSchema = Joi.object({
 
     password: Joi.string()
     .min(8)
-    .required(),
+    .required()
+    .custom((value, helpers) => {
+        if (value.toLowerCase() === "password") {
+            return helpers.error("any.invalid");
+        }
+        return value;
+    }, "non-trivial password"),
 });
 
 module.exports = { userSchema };
