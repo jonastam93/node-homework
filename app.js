@@ -20,14 +20,14 @@ app.use(express.json());
 // Routes
 app.use("/api/users", userRouter);
 
+// Mount the router
+app.use("/api/tasks", authMiddleware, taskRouter);
+
 // 404 middleware (must come after routes)
 app.use(notFound);
 
 // Error handler (must be last)
 app.use(errorHandler);
-
-// Mount the router
-app.use("/api/tasks", authMiddleware, taskRouter);
 
 const port = process.env.PORT || 3000;
 
