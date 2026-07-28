@@ -69,7 +69,7 @@ async function register(req, res) {
 }
 
 async function logon(req, res) {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
 
   const normalizedEmail =
     typeof email === "string" ? email.trim().toLowerCase() : email;
@@ -78,14 +78,20 @@ async function logon(req, res) {
     (currentUser) => currentUser.email === normalizedEmail,
   );
 
-  const goodCredentials =
-    user &&
-    password &&
-    (await comparePassword(password, user.hashedPassword));
-
-  if (!goodCredentials) {
+  if (!user) {
     return res.status(401).json({
-      error: "Invalid credentials"
+      error: "Invalid credentials",
+    });
+  }
+
+  const passwordMatches = await comparePassword(
+    password,
+    user.hashedPassword,
+  );
+
+  if (!passwordMatches) {
+    return res.status(401).json({
+      error: "Invalid credentials",
     });
   }
 
