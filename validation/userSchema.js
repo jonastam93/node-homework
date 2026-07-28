@@ -1,5 +1,16 @@
 const Joi = require("joi");
 
+const weakPasswords = [
+    "password",
+    "12345678",
+    "123456789",
+    "qwerty",
+    "letmein",
+    "admin",
+    "welcome",
+
+];
+
 const userSchema = Joi.object({
     email: Joi.string()
     .trim()
@@ -17,7 +28,7 @@ const userSchema = Joi.object({
     .min(8)
     .required()
     .custom((value, helpers) => {
-        if (value.toLowerCase() === "password") {
+        if (weakPasswords.includes(value.toLowerCase())) {
             return helpers.error("any.invalid");
         }
         return value;
