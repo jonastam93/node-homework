@@ -13,14 +13,40 @@ async function hashPassword(password) {
 }
 
 async function comparePassword(inputPassword, storedHash) {
-  const [salt, storedKey] = storedHash.split(":");
+  if (
+    typeof inputPassword !== "string" ||
+    typeof storedHash !== "string"
+  ) {
+    return false;
+  }
 
-  const derivedKey = await scrypt(inputPassword, salt, 64);
+  const parts = storedHash.split(":");
+
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [salt, storedKey] = parts;
+
+  if (!salt || !storedKey) {
+    return false;
+  }
+
+  try {
+    const storedKeyBuffer = Buffer.from(storedKey, "hex");
+    const derivedKey = await scrypt(inputPassword, salt, 64);
+
+    if (storedKeyBuffer.length !== derivedKey.length) {
+      return false;
+    }
 
   return crypto.timingSafeEqual(
-    Buffer.from(storedKey, "hex"),
+    storedKeyBuffer,
     derivedKey,
   );
+} catch {
+  return false;
+}
 }
 
 async function register(req, res) {
