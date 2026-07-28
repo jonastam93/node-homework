@@ -57,7 +57,7 @@ function index(req, res) {
 function show(req, res) {
     const taskId = parseInt(req.params?.id, 10);
 
-    if (number.isNaN(taskId)) {
+    if (Number.isNaN(taskId)) {
         return res.status(400).json({
             message: "Invalid task ID",
         });
