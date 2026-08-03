@@ -50,7 +50,7 @@ async function comparePassword(inputPassword, storedHash) {
 }
 }
 
-async function register(req, res) {
+async function register(req, res, next) {
   if (!req.body) {
     req.body = {};
   }
@@ -61,33 +61,36 @@ async function register(req, res) {
 
   if (error) {
     return res.status(400).json({
-      message: error.message,
+      message: "Validation failed",
+      details: error.details,
     });
   }
 
-  const existingUser = global.users.find(
-    (user) => user.email === value.email
-  );
+  value.hashed_password = await hashPassword(value.password);
 
-  if (existingUser) {
-    return res.status(400).json({
+  let result;
+
+  try {
+    result = await pool.query(
+      `INSERT INTO users (email, name, hashed_password)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, name`,
+      [value.email, value.name, value.hashed_password],
+    );
+  } catch (e) {
+    if (e.code === "23505") {
+      return res.status(400).json({
       message: "User already exists",
     });
   }
 
-  const hashedPassword = await hashPassword(value.password);
+    return next(e);
+  }
 
-  const newUser = {
-    id: global.users.length + 1,
-    name: value.name,
-    email: value.email,
-    hashedPassword,
-  };
-
-  global.users.push(newUser);
+  const newUser = result.rows[0];
 
   // User is now logged in
-  global.user_id = newUser;
+  global.user_id = newUser.id;
 
   return res.status(201).json({
       name: newUser.name,
