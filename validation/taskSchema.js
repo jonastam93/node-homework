@@ -7,7 +7,7 @@ const taskSchema = Joi.object({
     .max(30)
     .required(),
 
-    isCompleted: Joi.boolean()
+    is_completed: Joi.boolean()
     .default(false)
     .not(null),
 });
@@ -18,7 +18,7 @@ const patchTaskSchema = Joi.object({
     .min(3)
     .max(30),
 
-    isCompleted: Joi.boolean()
+    is_completed: Joi.boolean()
     .not(null),
 }).min(1);
 

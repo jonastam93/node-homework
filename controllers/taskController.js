@@ -1,5 +1,5 @@
-const { sanitize } = require("express-xss-sanitizer");
 const { taskSchema, patchTaskSchema } = require("../validation/taskSchema");
+const pool = require("../db/pg-pool");
 
 let currentTaskId = 1;
 
@@ -22,17 +22,14 @@ async function create(req, res) {
         });
     }
 
-    const newtask = {
-        id: taskCounter(),
-        userId: global.user_id.email,
-        ...value,
-    };
+    const task = await pool.query(
+      `INSERT INTO tasks (title, is_completed, user_id)
+       VALUES ($1, $2, $3)
+       RETURNING id, title, is_completed`,
+       [value.title, value.is_completed, global.user_id]
+    );
 
-    global.tasks.push(newtask);
-
-    const { userId, ...sanitizedTask } = newtask;
-
-    return res.status(201).json(sanitizedTask);
+    return res.status(201).json(task.rows[0]);
 }
 
 function index(req, res) {
