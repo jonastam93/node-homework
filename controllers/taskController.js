@@ -68,17 +68,15 @@ function show(req, res) {
         });
     }
 
-    const { userId, ...sanitizedTask } = task;
-
     return res.status(200).json(sanitizedTask);
 }
 
-function update(req, res) {
+async function update(req, res) {
   if (!req.body) {
     req.body = {};
   }
 
-  const { error, value } = patchTaskSchema.validate(req.body, {
+  const { error, value: taskChange } = patchTaskSchema.validate(req.body, {
     abortEarly: false,
   });
 
@@ -88,7 +86,7 @@ function update(req, res) {
     });
   }
 
-  const taskId = parseInt(req.params?.id, 10);
+  const taskId = Number.parseInt(req.params.id, 10);
 
   if (Number.isNaN(taskId)) {
     return res.status(400).json({
@@ -96,23 +94,25 @@ function update(req, res) {
     });
   }
 
-  const task = global.tasks.find(
-    (currentTask) =>
-      currentTask.id === taskId &&
-      currentTask.userId === global.user_id.email,
+  let keys = Object.keys(taskChange);
+
+  keys = keys.map((key) =>
+    key === "is_completed" ? "is_completed" : key);
+
+  const setClause = keys.map((key, index) => 
+    `${key} = $${i + 1}`).join(", ");
+
+  const idParm = `$${keys.length + 1}`;
+
+  const userParm = `$${keys.length + 2}`;
+
+  const updatedTask = await pool.query(
+    `UPDATE tasks 
+     SET ${setClause} 
+     WHERE id = ${idParm} AND user_id = ${userParm} 
+     RETURNING id, title, is_completed`,
+    [...Object.values(taskChange), req.params.id, global.user_id]
   );
-
-  if (!task) {
-    return res.status(404).json({
-      message: "Task not found",
-    });
-  }
-
-  Object.assign(task, value);
-
-  const { userId, ...sanitizedTask } = task;
-
-  return res.status(200).json(sanitizedTask);
 }
 
 function deleteTask(req, res) {
