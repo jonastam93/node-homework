@@ -1,12 +1,6 @@
 const { taskSchema, patchTaskSchema } = require("../validation/taskSchema");
 const pool = require("../db/pg-pool");
 
-let currentTaskId = 1;
-
-function taskCounter() {
-    return currentTaskId++;
-}
-
 async function create(req, res) {
     if (!req.body) {
         req.body = {};
@@ -47,8 +41,8 @@ async function index(req, res) {
     return res.status(200).json(tasks.rows);
 }
 
-function show(req, res) {
-    const taskId = parseInt(req.params?.id, 10);
+async function show(req, res) {
+    const taskId = Number.parseInt(req.params.id, 10);
 
     if (Number.isNaN(taskId)) {
         return res.status(400).json({
@@ -56,19 +50,19 @@ function show(req, res) {
         });
     }
 
-    const task = global.tasks.find(
-        (task) =>
-            task.id === taskId &&
-            task.userId === global.user_id.email
+    const showTask = await pool.query(
+      `SELECT id, title, is_completed FROM tasks
+       WHERE id = $1 AND user_id = $2`,
+      [taskId, global.user_id]  
     );
 
-    if (!task) {
+    if (showTask.rows.length === 0) {
         return res.status(404).json({
             message: "Task not found",
         });
     }
 
-    return res.status(200).json(sanitizedTask);
+    return res.status(200).json(showTask.rows[0]);
 }
 
 async function update(req, res) {
@@ -115,8 +109,8 @@ async function update(req, res) {
   );
 }
 
-function deleteTask(req, res) {
-  const taskId = parseInt(req.params?.id, 10);
+async function deleteTask(req, res) {
+  const taskId = Number.parseInt(req.params.id, 10);
 
   if (Number.isNaN(taskId)) {
     return res.status(400).json({
@@ -124,25 +118,20 @@ function deleteTask(req, res) {
     });
   }
 
-  const taskIndex = global.tasks.findIndex(
-    (task) =>
-      task.id === taskId &&
-      task.userId === global.user_id.email
+  const deletedTask = await pool.query(
+    `DELETE FROM tasks
+     WHERE id = $1 AND user_id = $2
+     RETURNING id, title, is_completed`,
+    [taskId, global.user_id]
   );
 
-  if (taskIndex === -1) {
+  if (deletedTask.rows.length === 0) {
     return res.status(404).json({
       message: "Task not found",
     });
   }
 
-  const task = global.tasks[taskIndex];
-
-  const { userId, ...sanitizedTask } = task;
-
-  global.tasks.splice(taskIndex, 1);
-
-  return res.status(200).json(sanitizedTask);
+  return res.status(200).json(deletedTask.rows[0]); 
 }
 
 module.exports = { create, index, show, update, deleteTask, };
