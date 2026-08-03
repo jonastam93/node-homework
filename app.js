@@ -5,6 +5,7 @@ const notFound = require("./middleware/not-found");
 const errorHandler = require("./middleware/error-handler");
 const authMiddleware = require("./middleware/auth");
 const taskRouter = require("./routes/taskRoutes");
+const pool = require("./db/pg-pool");
 
 const app = express();
 
@@ -34,5 +35,20 @@ const port = process.env.PORT || 3000;
 const server = app.listen(port, () => {
     console.log(`Server is listening on port ${port}...`);
 });
+
+async function shutdown() {
+    console.log('Shutting down...');
+
+    // Stop accepting new connections
+    server.close();
+
+    // Close all PostgreSQL connections
+    await pool.end();
+
+    process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 module.exports = { app, server };
