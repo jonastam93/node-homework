@@ -12,7 +12,6 @@ const app = express();
 // In memory "database"
 global.user_id = null;
 global.users = [];
-global.tasks = [];
 
 
 // Parse JSON 
