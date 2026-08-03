@@ -1,6 +1,7 @@
 const { userSchema } = require("../validation/userSchema");
 const crypto = require("crypto");
 const util = require("util");
+const pool = require("../db/pg-pool");
 
 const scrypt = util.promisify(crypto.scrypt);
 
@@ -100,19 +101,22 @@ async function logon(req, res) {
   const normalizedEmail =
     typeof email === "string" ? email.trim().toLowerCase() : email;
 
-  const user = global.users.find(
-    (currentUser) => currentUser.email === normalizedEmail,
+  const result = await pool.query(
+    "SELECT * FROM users WHERE email = $1",
+    [normalizedEmail]
   );
 
-  if (!user) {
+  if (result.rows.length === 0) {
     return res.status(401).json({
       error: "Invalid credentials",
     });
   }
 
+  const user = result.rows[0];
+
   const passwordMatches = await comparePassword(
     password,
-    user.hashedPassword,
+    user.hashed_password,
   );
 
   if (!passwordMatches) {
