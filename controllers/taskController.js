@@ -25,19 +25,24 @@ async function create(req, res) {
   return res.status(201).json(result.rows[0]);
 }
 
-async function index(req, res) {
-    const tasks = await pool.query(
-      "SELECT id, title, is_completed FROM tasks WHERE user_id = $1",
-      [global.user_id]
+async function index(req, res, next) {
+  try {
+    const result = await pool.query(
+      `SELECT
+         id,
+         title,
+         is_completed AS "isCompleted",
+         created_at AS "createdAt"
+       FROM tasks
+       WHERE user_id = $1
+       ORDER BY id`,
+      [global.user_id.id],
     );
 
-    if (tasks.rows.length === 0) {
-        return res.status(404).json({
-            message: "No tasks found",
-        });
-    }
-
-    return res.status(200).json(tasks.rows);
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    next(error);
+  }
 }
 
 async function show(req, res) {
@@ -64,62 +69,65 @@ async function show(req, res) {
     return res.status(200).json(showTask.rows[0]);
 }
 
-async function update(req, res) {
-  const { error, value: taskChange } = patchTaskSchema.validate(
-    req.body || {},
-    {
+async function update(req, res, next) {
+  try {
+    const { error, value: taskChange } = patchTaskSchema.validate(req.body, {
       abortEarly: false,
-    },
-  );
-
-  if (error) {
-    return res.status(400).json({
-      message: error.message,
+      stripUnknown: true,
     });
+
+    if (error) {
+      return res.status(400).json({
+        message: error.details.map((detail) => detail.message).join(", "),
+      });
+    }
+
+    const taskId = Number(req.params.id);
+
+    if (!Number.isInteger(taskId)) {
+      return res.status(400).json({
+        message: "Invalid task ID",
+      });
+    }
+
+    const columnMap = {
+      title: "title",
+      isCompleted: "is_completed",
+    };
+
+    const entries = Object.entries(taskChange);
+
+    const setClause = entries
+      .map(([key], index) => `${columnMap[key]} = $${index + 1}`)
+      .join(", ");
+
+    const values = entries.map(([, value]) => value);
+
+    values.push(taskId, global.user_id.id);
+
+    const result = await pool.query(
+      `UPDATE tasks
+       SET ${setClause}
+       WHERE id = $${values.length - 1}
+         AND user_id = $${values.length}
+       RETURNING
+         id,
+         title,
+         is_completed AS "isCompleted",
+         created_at AS "createdAt"`,
+      values,
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    next(error);
   }
-
-  const taskId = Number.parseInt(req.params.id, 10);
-
-  if (Number.isNaN(taskId)) {
-    return res.status(400).json({
-      message: "Invalid task ID",
-    });
-  }
-
-  const columnMap = {
-    title: "title",
-    isCompleted: "is_completed",
-  };
-
-  const entries = Object.entries(taskChange);
-
-  const setClause = entries
-    .map(([key], index) => {
-      return `${columnMap[key]} = $${index + 1}`;
-    })
-    .join(", ");
-
-  const values = entries.map(([, value]) => value);
-
-  const idParameter = `$${values.length + 1}`;
-  const userParameter = `$${values.length + 2}`;
-
-  const updatedTask = await pool.query(
-    `UPDATE tasks
-     SET ${setClause}
-     WHERE id = ${idParameter}
-       AND user_id = ${userParameter}
-     RETURNING id, title, is_completed`,
-    [...values, taskId, global.user_id],
-  );
-
-  if (updatedTask.rows.length === 0) {
-    return res.status(404).json({
-      message: "Task not found",
-    });
-  }
-
-  return res.status(200).json(updatedTask.rows[0]);
 }
 
 async function deleteTask(req, res) {
