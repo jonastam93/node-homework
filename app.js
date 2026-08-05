@@ -11,7 +11,6 @@ const app = express();
 
 // In memory "database"
 global.user_id = null;
-global.users = [];
 
 
 // Parse JSON 
@@ -19,17 +18,17 @@ app.use(express.json());
 
 // Health check
 app.get("/health", async (req, res) => {
-    try {
-        await pool.query("SELECT 1");
-        res.json({
-            status: "ok",
-            db: "connected",
-        });
-    } catch (err) {
-        res.status(500).json({
-            message: `db not connected: ${err.message}`,
-        });
-    }
+  try {
+    await pool.query("SELECT 1");
+
+    return res.status(200).json({
+      message: "db connected",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: `db not connected, error: ${error.message}`,
+    });
+  }
 });
 
 // Routes
