@@ -7,7 +7,6 @@ const scrypt = util.promisify(crypto.scrypt);
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
-
   const derivedKey = await scrypt(password, salt, 64);
 
   return `${salt}:${derivedKey.toString("hex")}`;
@@ -41,72 +40,81 @@ async function comparePassword(inputPassword, storedHash) {
       return false;
     }
 
-  return crypto.timingSafeEqual(
-    storedKeyBuffer,
-    derivedKey,
-  );
-} catch {
-  return false;
-}
+    return crypto.timingSafeEqual(
+      storedKeyBuffer,
+      derivedKey,
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function register(req, res, next) {
-  if (!req.body) {
-    req.body = {};
-  }
+  const existingUsers = await pool.query(
+    `SELECT id, email
+     FROM users
+     ORDER BY id`,
+  );
 
-  const { error, value } = userSchema.validate(req.body, {
+  const { error, value } = userSchema.validate(req.body || {}, {
     abortEarly: false,
   });
 
   if (error) {
+    console.log("VALIDATION FAILED", error.details);
+
     return res.status(400).json({
       message: "Validation failed",
       details: error.details,
     });
   }
 
-  value.hashed_password = await hashPassword(value.password);
-
-  let result;
-
   try {
-    result = await pool.query(
+    const hashedPassword = await hashPassword(value.password);
+
+    const result = await pool.query(
       `INSERT INTO users (email, name, hashed_password)
        VALUES ($1, $2, $3)
        RETURNING id, email, name`,
-      [value.email, value.name, value.hashed_password],
+      [value.email, value.name, hashedPassword],
     );
-  } catch (e) {
-    if (e.code === "23505") {
-      return res.status(400).json({
-      message: "User already exists",
+
+    global.user_id = result.rows[0].id;
+
+    return res.status(201).json({
+      name: result.rows[0].name,
+      email: result.rows[0].email,
     });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(400).json({
+        message: "User already exists",
+      });
+    }
+
+    return next(err);
   }
-
-    return next(e);
-  }
-
-  const newUser = result.rows[0];
-
-  // User is now logged in
-  global.user_id = newUser.id;
-
-  return res.status(201).json({
-      name: newUser.name,
-      email: newUser.email,
-  });
 }
 
 async function logon(req, res) {
   const { email, password } = req.body || {};
 
-  const normalizedEmail =
-    typeof email === "string" ? email.trim().toLowerCase() : email;
+  if (
+    typeof email !== "string" ||
+    typeof password !== "string"
+  ) {
+    return res.status(401).json({
+      error: "Invalid credentials",
+    });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
 
   const result = await pool.query(
-    "SELECT * FROM users WHERE email = $1",
-    [normalizedEmail]
+    `SELECT id, email, name, hashed_password
+     FROM users
+     WHERE email = $1`,
+    [normalizedEmail],
   );
 
   if (result.rows.length === 0) {
@@ -128,7 +136,8 @@ async function logon(req, res) {
     });
   }
 
-  global.user_id = user;
+  // Store only the numeric database ID.
+  global.user_id = user.id;
 
   return res.status(200).json({
     name: user.name,

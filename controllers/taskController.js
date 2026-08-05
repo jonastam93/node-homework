@@ -2,28 +2,27 @@ const { taskSchema, patchTaskSchema } = require("../validation/taskSchema");
 const pool = require("../db/pg-pool");
 
 async function create(req, res) {
-    if (!req.body) {
-        req.body = {};
-    }
+  const { error, value } = taskSchema.validate(req.body || {});
 
-    const { error, value } = taskSchema.validate(req.body, {
-        abortEarly: false,
+  if (error) {
+    return res.status(400).json({
+      message: "Validation failed",
+      details: error.details,
     });
+  }
 
-    if (error) {
-        return res.status(400).json({
-            message: error.message,
-        });
-    }
+  const result = await pool.query(
+    `INSERT INTO tasks (title, is_completed, user_id)
+     VALUES ($1, $2, $3)
+     RETURNING id, title, is_completed`,
+    [
+      value.title,
+      value.isCompleted,
+      global.user_id,
+    ],
+  );
 
-    const task = await pool.query(
-      `INSERT INTO tasks (title, is_completed, user_id)
-       VALUES ($1, $2, $3)
-       RETURNING id, title, is_completed`,
-       [value.title, value.is_completed, global.user_id]
-    );
-
-    return res.status(201).json(task.rows[0]);
+  return res.status(201).json(result.rows[0]);
 }
 
 async function index(req, res) {
@@ -66,13 +65,12 @@ async function show(req, res) {
 }
 
 async function update(req, res) {
-  if (!req.body) {
-    req.body = {};
-  }
-
-  const { error, value: taskChange } = patchTaskSchema.validate(req.body, {
-    abortEarly: false,
-  });
+  const { error, value: taskChange } = patchTaskSchema.validate(
+    req.body || {},
+    {
+      abortEarly: false,
+    },
+  );
 
   if (error) {
     return res.status(400).json({
@@ -88,25 +86,40 @@ async function update(req, res) {
     });
   }
 
-  let keys = Object.keys(taskChange);
+  const columnMap = {
+    title: "title",
+    isCompleted: "is_completed",
+  };
 
-  keys = keys.map((key) =>
-    key === "is_completed" ? "is_completed" : key);
+  const entries = Object.entries(taskChange);
 
-  const setClause = keys.map((key, index) => 
-    `${key} = $${i + 1}`).join(", ");
+  const setClause = entries
+    .map(([key], index) => {
+      return `${columnMap[key]} = $${index + 1}`;
+    })
+    .join(", ");
 
-  const idParm = `$${keys.length + 1}`;
+  const values = entries.map(([, value]) => value);
 
-  const userParm = `$${keys.length + 2}`;
+  const idParameter = `$${values.length + 1}`;
+  const userParameter = `$${values.length + 2}`;
 
   const updatedTask = await pool.query(
-    `UPDATE tasks 
-     SET ${setClause} 
-     WHERE id = ${idParm} AND user_id = ${userParm} 
+    `UPDATE tasks
+     SET ${setClause}
+     WHERE id = ${idParameter}
+       AND user_id = ${userParameter}
      RETURNING id, title, is_completed`,
-    [...Object.values(taskChange), req.params.id, global.user_id]
+    [...values, taskId, global.user_id],
   );
+
+  if (updatedTask.rows.length === 0) {
+    return res.status(404).json({
+      message: "Task not found",
+    });
+  }
+
+  return res.status(200).json(updatedTask.rows[0]);
 }
 
 async function deleteTask(req, res) {
