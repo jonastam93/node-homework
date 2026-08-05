@@ -40,24 +40,18 @@ async function comparePassword(inputPassword, storedHash) {
       return false;
     }
 
-    return crypto.timingSafeEqual(
-      storedKeyBuffer,
-      derivedKey,
-    );
+    return crypto.timingSafeEqual(storedKeyBuffer, derivedKey);
   } catch {
     return false;
   }
 }
 
 async function register(req, res, next) {
-
   const { error, value } = userSchema.validate(req.body || {}, {
     abortEarly: false,
   });
 
   if (error) {
-    console.log("VALIDATION FAILED", error.details);
-
     return res.status(400).json({
       message: "Validation failed",
       details: error.details,
@@ -74,26 +68,34 @@ async function register(req, res, next) {
       [value.email, value.name, hashedPassword],
     );
 
-    global.user_id = result.rows[0].id;
+    const user = result.rows[0];
+
+    global.user_id = user.id;
 
     return res.status(201).json({
-      name: result.rows[0].name,
-      email: result.rows[0].email,
+      name: user.name,
+      email: user.email,
     });
-  } catch (err) {
-    if (err.code === "23505") {
+  } catch (error) {
+    if (error.code === "23505") {
       return res.status(400).json({
         message: "User already exists",
       });
     }
 
-    return next(err);
+    return next(error);
   }
 }
 
 async function logon(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
 
     const result = await pool.query(
       `SELECT id, email, name, hashed_password
@@ -121,18 +123,14 @@ async function logon(req, res, next) {
       });
     }
 
-    global.user_id = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    };
+    global.user_id = user.id;
 
     return res.status(200).json({
       name: user.name,
       email: user.email,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
