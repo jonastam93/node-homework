@@ -50,11 +50,6 @@ async function comparePassword(inputPassword, storedHash) {
 }
 
 async function register(req, res, next) {
-  const existingUsers = await pool.query(
-    `SELECT id, email
-     FROM users
-     ORDER BY id`,
-  );
 
   const { error, value } = userSchema.validate(req.body || {}, {
     abortEarly: false,
@@ -96,53 +91,49 @@ async function register(req, res, next) {
   }
 }
 
-async function logon(req, res) {
-  const { email, password } = req.body || {};
+async function logon(req, res, next) {
+  try {
+    const { email, password } = req.body;
 
-  if (
-    typeof email !== "string" ||
-    typeof password !== "string"
-  ) {
-    return res.status(401).json({
-      error: "Invalid credentials",
+    const result = await pool.query(
+      `SELECT id, email, name, hashed_password
+       FROM users
+       WHERE email = $1`,
+      [email],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const passwordMatches = await comparePassword(
+      password,
+      user.hashed_password,
+    );
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    global.user_id = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    };
+
+    return res.status(200).json({
+      name: user.name,
+      email: user.email,
     });
+  } catch (error) {
+    next(error);
   }
-
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const result = await pool.query(
-    `SELECT id, email, name, hashed_password
-     FROM users
-     WHERE email = $1`,
-    [normalizedEmail],
-  );
-
-  if (result.rows.length === 0) {
-    return res.status(401).json({
-      error: "Invalid credentials",
-    });
-  }
-
-  const user = result.rows[0];
-
-  const passwordMatches = await comparePassword(
-    password,
-    user.hashed_password,
-  );
-
-  if (!passwordMatches) {
-    return res.status(401).json({
-      error: "Invalid credentials",
-    });
-  }
-
-  // Store only the numeric database ID.
-  global.user_id = user.id;
-
-  return res.status(200).json({
-    name: user.name,
-    email: user.email,
-  });
 }
 
 function logoff(req, res) {
