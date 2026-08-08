@@ -1,10 +1,16 @@
 function errorHandler(err, req, res, next) {
-    console.error(err);
+  if (err.code === "ECONNREFUSED" && err.port === 5432) {
+    console.error(
+      "Database connection was refused. Is the database service running?",
+    );
+  }
 
-    return res.status(500).json({
-        error: "Internal Server Error",
-        requestId: req.requestId,
-    });
+  console.error(err);
+
+  return res.status(err.statusCode || 500).json({
+    error: err.statusCode ? err.message : "Internal Server Error",
+    requestId: req.requestId,
+  });
 }
 
 module.exports = errorHandler;

@@ -1,12 +1,12 @@
 const { userSchema } = require("../validation/userSchema");
 const crypto = require("crypto");
 const util = require("util");
+const pool = require("../db/pg-pool");
 
 const scrypt = util.promisify(crypto.scrypt);
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
-
   const derivedKey = await scrypt(password, salt, 64);
 
   return `${salt}:${derivedKey.toString("hex")}`;
@@ -40,93 +40,98 @@ async function comparePassword(inputPassword, storedHash) {
       return false;
     }
 
-  return crypto.timingSafeEqual(
-    storedKeyBuffer,
-    derivedKey,
-  );
-} catch {
-  return false;
-}
-}
-
-async function register(req, res) {
-  if (!req.body) {
-    req.body = {};
+    return crypto.timingSafeEqual(storedKeyBuffer, derivedKey);
+  } catch {
+    return false;
   }
+}
 
-  const { error, value } = userSchema.validate(req.body, {
+async function register(req, res, next) {
+  const { error, value } = userSchema.validate(req.body || {}, {
     abortEarly: false,
   });
 
   if (error) {
     return res.status(400).json({
-      message: error.message,
+      message: "Validation failed",
+      details: error.details,
     });
   }
 
-  const existingUser = global.users.find(
-    (user) => user.email === value.email
-  );
+  try {
+    const hashedPassword = await hashPassword(value.password);
 
-  if (existingUser) {
-    return res.status(400).json({
-      message: "User already exists",
+    const result = await pool.query(
+      `INSERT INTO users (email, name, hashed_password)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, name`,
+      [value.email, value.name, hashedPassword],
+    );
+
+    const user = result.rows[0];
+
+    global.user_id = user.id;
+
+    return res.status(201).json({
+      name: user.name,
+      email: user.email,
     });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(400).json({
+        message: "User already exists",
+      });
+    }
+
+    return next(error);
   }
-
-  const hashedPassword = await hashPassword(value.password);
-
-  const newUser = {
-    id: global.users.length + 1,
-    name: value.name,
-    email: value.email,
-    hashedPassword,
-  };
-
-  global.users.push(newUser);
-
-  // User is now logged in
-  global.user_id = newUser;
-
-  return res.status(201).json({
-      name: newUser.name,
-      email: newUser.email,
-  });
 }
 
-async function logon(req, res) {
-  const { email, password } = req.body || {};
+async function logon(req, res, next) {
+  try {
+    const { email, password } = req.body || {};
 
-  const normalizedEmail =
-    typeof email === "string" ? email.trim().toLowerCase() : email;
+    if (!email || !password) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
 
-  const user = global.users.find(
-    (currentUser) => currentUser.email === normalizedEmail,
-  );
+    const result = await pool.query(
+      `SELECT id, email, name, hashed_password
+       FROM users
+       WHERE email = $1`,
+      [email],
+    );
 
-  if (!user) {
-    return res.status(401).json({
-      error: "Invalid credentials",
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const passwordMatches = await comparePassword(
+      password,
+      user.hashed_password,
+    );
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    global.user_id = user.id;
+
+    return res.status(200).json({
+      name: user.name,
+      email: user.email,
     });
+  } catch (error) {
+    return next(error);
   }
-
-  const passwordMatches = await comparePassword(
-    password,
-    user.hashedPassword,
-  );
-
-  if (!passwordMatches) {
-    return res.status(401).json({
-      error: "Invalid credentials",
-    });
-  }
-
-  global.user_id = user;
-
-  return res.status(200).json({
-    name: user.name,
-    email: user.email,
-  });
 }
 
 function logoff(req, res) {
