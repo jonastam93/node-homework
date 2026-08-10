@@ -13,7 +13,7 @@ model Task {
   isCompleted  Boolean  @default(false) @map("is_completed")
   userId       Int      @map("user_id")
   createdAt    DateTime @default(now()) @db.Timestamp(6) @map("created_at")
-  User         User    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User         User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id, userId], map: "task_id_user_id_unique")
   @@map("tasks")
