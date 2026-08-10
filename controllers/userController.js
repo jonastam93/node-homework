@@ -2,6 +2,7 @@ const { userSchema } = require("../validation/userSchema");
 const crypto = require("crypto");
 const util = require("util");
 const pool = require("../db/pg-pool");
+const prisma = require("../db/prisma");
 
 const scrypt = util.promisify(crypto.scrypt);
 
@@ -89,37 +90,28 @@ async function register(req, res, next) {
 
 async function logon(req, res, next) {
   try {
-    const { email, password } = req.body || {};
+    let { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(401).json({
-        message: "Unauthorized",
-      });
-    }
+    email = email.toLowerCase();
 
-    const result = await pool.query(
-      `SELECT id, email, name, hashed_password
-       FROM users
-       WHERE email = $1`,
-      [email],
-    );
-
-    const user = result.rows[0];
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
     if (!user) {
       return res.status(401).json({
-        message: "Unauthorized",
+        message: "Invalid email or password",
       });
     }
 
     const passwordMatches = await comparePassword(
       password,
-      user.hashed_password,
+      user.hashedPassword,
     );
 
     if (!passwordMatches) {
       return res.status(401).json({
-        message: "Unauthorized",
+        message: "Invalid email or password",
       });
     }
 
