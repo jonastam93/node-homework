@@ -50,6 +50,7 @@ async function comparePassword(inputPassword, storedHash) {
 async function register(req, res, next) {
   const { error, value } = userSchema.validate(req.body || {}, {
     abortEarly: false,
+    stripUnknown: true,
   });
 
   if (error) {
@@ -58,34 +59,43 @@ async function register(req, res, next) {
       details: error.details,
     });
   }
+  
+  const hashedPassword = await hashPassword(value.password);
 
+  let user = null;
+    
   try {
-    const hashedPassword = await hashPassword(value.password);
-
-    const result = await pool.query(
-      `INSERT INTO users (email, name, hashed_password)
-       VALUES ($1, $2, $3)
-       RETURNING id, email, name`,
-      [value.email, value.name, hashedPassword],
-    );
-
-    const user = result.rows[0];
-
-    global.user_id = user.id;
-
-    return res.status(201).json({
-      name: user.name,
-      email: user.email,
+    user = await prisma.user.create({
+      data: {
+        name: value.name,
+        email: value.email,
+        hashedPassword,
+      },
+      select: {
+        name: true,
+        email: true,
+        id: true,
+      },
     });
-  } catch (error) {
-    if (error.code === "23505") {
+  } catch (err) {
+    if (
+      err.name === "PrismaClientKnownRequestError" &&
+      err.code === "P2002"
+    ) {
       return res.status(400).json({
-        message: "User already exists",
+        message: "Email already registered",
       });
+    } else {
+      return next(err);
     }
-
-    return next(error);
   }
+
+  global.user_id = user.id;
+
+  return res.status(201).json({
+    name: user.name,
+    email: user.email,
+  });
 }
 
 async function logon(req, res, next) {
