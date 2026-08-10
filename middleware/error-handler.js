@@ -5,6 +5,12 @@ function errorHandler(err, req, res, next) {
     );
   }
 
+  if (err.name === "PrismaClientInitializationError") {
+    console.error(
+      "Couldn't connect to the database. Is it running?"
+    );
+  }
+
   console.error(err);
 
   return res.status(err.statusCode || 500).json({
