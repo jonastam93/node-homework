@@ -52,7 +52,7 @@ const server = app.listen(port, () => {
 });
 
 async function shutdown() {
-    console.log('Shutting down...');
+    console.log("Shutting down...");
 
     // Stop accepting new connections
     server.close();
