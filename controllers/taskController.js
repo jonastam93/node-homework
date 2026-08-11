@@ -92,14 +92,12 @@ async function show(req, res, next) {
 }
 
 async function update(req, res, next) {
-  try {
-    const { error, value: taskChange } = patchTaskSchema.validate(
+    const { error, value } = patchTaskSchema.validate(
       req.body || {},
       {
         abortEarly: false,
         stripUnknown: true,
-      },
-    );
+      });
 
     if (error) {
       return res.status(400).json({
@@ -108,56 +106,38 @@ async function update(req, res, next) {
       });
     }
 
-    const taskId = Number(req.params.id);
+    const id = Number(req.params.id);
 
-    if (!Number.isInteger(taskId)) {
+    if (!Number.isInteger(id)) {
       return res.status(400).json({
-        message: "Invalid task ID",
+        message: "Invalid task id",
       });
     }
 
-    const columnMap = {
-      title: "title",
-      isCompleted: "is_completed",
-    };
-
-    const entries = Object.entries(taskChange);
-
-    const setClause = entries
-      .map(([key], index) => {
-        return `${columnMap[key]} = $${index + 1}`;
-      })
-      .join(", ");
-
-    const values = entries.map(([, fieldValue]) => fieldValue);
-
-    const taskIdPosition = values.length + 1;
-    const userIdPosition = values.length + 2;
-
-    values.push(taskId, global.user_id);
-
-    const result = await pool.query(
-      `UPDATE tasks
-       SET ${setClause}
-       WHERE id = $${taskIdPosition}
-         AND user_id = $${userIdPosition}
-       RETURNING
-         id,
-         title,
-         is_completed AS "isCompleted"`,
-      values,
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Task not found",
+    try {
+      const task = await prisma.task.update({
+        data: value,
+        where: {
+          id,
+          userId: global.user_id,
+        },
+        select: {
+          title: true,
+          isCompleted: true,
+          id: true,
+        },
       });
-    }
+      
+      return res.status(200).json(task);
+    } catch (err) {
+      if (err.code === "P2025") {
+        return res.status(404).json({
+          message: "The task was not found.",
+        });
+      }
 
-    return res.status(200).json(result.rows[0]);
-  } catch (error) {
-    return next(error);
-  }
+      return next(err);
+    }
 }
 
 async function deleteTask(req, res, next) {
