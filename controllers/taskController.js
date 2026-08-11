@@ -4,6 +4,7 @@ const {
 } = require("../validation/taskSchema");
 
 const pool = require("../db/pg-pool");
+const prisma = require("../db/prisma");
 
 async function create(req, res, next) {
   try {
@@ -41,18 +42,18 @@ async function create(req, res, next) {
 
 async function index(req, res, next) {
   try {
-    const result = await pool.query(
-      `SELECT
-         id,
-         title,
-         is_completed AS "isCompleted"
-       FROM tasks
-       WHERE user_id = $1
-       ORDER BY id`,
-      [global.user_id],
-    );
+    const tasks = await prisma.task.findMany({
+      where: {
+        userId: global.user_id,
+      },
+      select: {
+        title: true,
+        isCompleted: true,
+        id: true,
+      },
+    });
 
-    return res.status(200).json(result.rows);
+    return res.status(200).json(tasks);
   } catch (error) {
     return next(error);
   }
