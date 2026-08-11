@@ -5,7 +5,6 @@ const notFound = require("./middleware/not-found");
 const errorHandler = require("./middleware/error-handler");
 const authMiddleware = require("./middleware/auth");
 const taskRouter = require("./routes/taskRoutes");
-const pool = require("./db/pg-pool");
 const prisma = require("./db/prisma");
 const app = express();
 
@@ -57,9 +56,6 @@ async function shutdown() {
 
     // Stop accepting new connections
     server.close();
-
-    // Close all PostgreSQL connections
-    await pool.end();
 
     // Close all Prisma connections
     await prisma.$disconnect();
