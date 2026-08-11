@@ -20,21 +20,20 @@ async function create(req, res, next) {
       });
     }
 
-    const result = await pool.query(
-      `INSERT INTO tasks (title, is_completed, user_id)
-       VALUES ($1, $2, $3)
-       RETURNING
-         id,
-         title,
-         is_completed AS "isCompleted"`,
-      [
-        value.title,
-        value.isCompleted,
-        global.user_id,
-      ],
-    );
+    const task = await prisma.task.create({
+      data: {
+        title: value.title,
+        isCompleted: value.isCompleted,
+        userId: global.user_id,
+      },
+      select: {
+        id: true,
+        title: true,
+        isCompleted: true,
+      },
+    });
 
-    return res.status(201).json(result.rows[0]);
+    return res.status(201).json(task);
   } catch (error) {
     return next(error);
   }
