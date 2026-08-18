@@ -1,18 +1,19 @@
 const express = require("express");
 
 const userRouter = require("./routes/userRoutes");
+const taskRouter = require("./routes/taskRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
+
 const notFound = require("./middleware/not-found");
 const errorHandler = require("./middleware/error-handler");
 const authMiddleware = require("./middleware/auth");
-const taskRouter = require("./routes/taskRoutes");
 const prisma = require("./db/prisma");
+
 const app = express();
 
-// In memory "database"
 global.user_id = null;
 
-
-// Parse JSON 
+// Parse JSON
 app.use(express.json());
 
 // Health check
@@ -36,35 +37,34 @@ app.get("/health", async (req, res) => {
 // Routes
 app.use("/api/users", userRouter);
 
-// Mount the router
 app.use("/api/tasks", authMiddleware, taskRouter);
 
-// 404 middleware (must come after routes)
+app.use("/api/analytics", authMiddleware, analyticsRoutes);
+
+// 404 middleware
 app.use(notFound);
 
-// Error handler (must be last)
+// Error handler
 app.use(errorHandler);
 
 const port = process.env.PORT || 3000;
 
 const server = app.listen(port, () => {
-    console.log(`Server is listening on port ${port}...`);
+  console.log(`Server is listening on port ${port}...`);
 });
 
 async function shutdown() {
-    console.log("Shutting down...");
+  console.log("Shutting down...");
 
-    // Stop accepting new connections
-    server.close();
+  server.close();
 
-    // Close all Prisma connections
-    await prisma.$disconnect();
-    console.log("Prisma disconnected");
+  await prisma.$disconnect();
+  console.log("Prisma disconnected");
 
-    process.exit(0);
+  process.exit(0);
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 module.exports = { app, server };

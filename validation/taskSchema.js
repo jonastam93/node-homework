@@ -10,6 +10,10 @@ const taskSchema = Joi.object({
     isCompleted: Joi.boolean()
     .default(false)
     .not(null),
+
+    priority: Joi.string()
+    .valid("low", "medium", "high")
+    .default("medium"),
 });
 
 const patchTaskSchema = Joi.object({
@@ -20,6 +24,9 @@ const patchTaskSchema = Joi.object({
 
     isCompleted: Joi.boolean()
     .not(null),
+
+    priority: Joi.string()
+    .valid("low", "medium", "high"),
 }).min(1);
 
 module.exports = { taskSchema, patchTaskSchema };
