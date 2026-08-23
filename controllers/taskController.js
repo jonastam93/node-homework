@@ -3,6 +3,8 @@ const {
   patchTaskSchema,
 } = require("../validation/taskSchema");
 const prisma = require("../db/prisma");
+const { contain } = require("supertest/lib/cookies");
+const e = require("express");
 
 async function create(req, res, next) {
   try {
@@ -22,12 +24,14 @@ async function create(req, res, next) {
       data: {
         title: value.title,
         isCompleted: value.isCompleted,
+        priority: value.priority,
         userId: global.user_id,
       },
       select: {
         id: true,
         title: true,
         isCompleted: true,
+        priority: true,
       },
     });
 
@@ -39,145 +43,259 @@ async function create(req, res, next) {
 
 async function index(req, res, next) {
   try {
-    const tasks = await prisma.task.findMany({
-      where: {
-        userId: global.user_id,
-      },
-      select: {
-        title: true,
-        isCompleted: true,
-        id: true,
-      },
-    });
+    // Parse pagination parameters
+    const page = req.query.page ? parseInt(req.query.page) : 1;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
 
-    if (tasks.length === 0) {
-      return res.status(404).json({
-        message: "No tasks found.",
+    // Validate pagination
+    if (!Number.isInteger(page) || page < 1) {
+      return res.status(400).json({
+        message: "Page must be a positive integer",
       });
     }
 
-    return res.status(200).json(tasks);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return res.status(400).json({
+        message: "Limit must be an integer between 1 and 100",
+      });
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Only get tasks belonging to the logged-in user
+    const whereClause = {
+      userId: global.user_id,
+    };
+
+    // Optional title search
+    if (req.query.find) {
+      whereClause.title = {
+        contains: req.query.find,
+        mode: "insensitive",
+      };
+    }
+
+    // Get tasks with pagination, search, and eager loading
+    const tasks = await prisma.task.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        title: true,
+        isCompleted: true,
+        priority: true,
+        createdAt: true,
+        User: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    // Count only tasks matching the same filter
+    const totalTasks = await prisma.task.count({
+      where: whereClause,
+    });
+
+    const pagination = {
+      page,
+      limit,
+      total: totalTasks,
+      pages: Math.ceil(totalTasks / limit),
+      hasNext: page * limit < totalTasks,
+      hasPrev: page > 1,
+    };
+
+    return res.status(200).json({
+      tasks,
+      pagination,
+    });
   } catch (error) {
     return next(error);
   }
 }
 
-async function show(req, res, next) {
-    const id = Number(req.params.id);
+// Bulk create with validation
+async function bulkCreate(req, res, next) {
+  const { tasks } = req.body || {};
 
-    if (!Number.isInteger(id)) {
+  // Validate the tasks array
+  if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({
+      error: "Invalid request data. Expected an array of tasks.",
+    });
+  }
+
+  // Validate all tasks before insertion
+  const validTasks = [];
+  
+  for (const task of tasks) {
+    const { error, value } = taskSchema.validate(task);
+
+    if (error) {
       return res.status(400).json({
-        message: "Invalid task id",
+        error: "Validation failed",
+        details: error.details,
       });
     }
+    validTasks.push({
+      title: value.title,
+      isCompleted: value.isCompleted || false,
+      priority: value.priority || "medium",
+      userId: global.user_id
+    });
+  }
 
-    try {
-      const task = await prisma.task.findUnique({
-        where: {
+  // Use createMany for batch insertion
+  try {
+    const result = await prisma.task.createMany({
+      data: validTasks,
+      skipDuplicates: false
+    });
+
+    res.status(201).json({
+      message: "success!",
+      tasksCreated: result.count,
+      totalRequested: validTasks.length
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+async function show(req, res, next) {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({
+      message: "Invalid task id",
+    });
+  }
+
+  try {
+    const task = await prisma.task.findUnique({
+      where: {
+        id_userId: {
           id,
           userId: global.user_id,
         },
-        select: {
-          id: true,
-          title: true,
-          isCompleted: true,
+      },
+      select: {
+        id: true,
+        title: true,
+        isCompleted: true,
+        priority: true,
+        createdAt: true,
+        User: {
+          select: {
+            name: true,
+            email: true,
+          },
         },
-      });
+      },
+    });
 
-      if (!task) {
-        return res.status(404).json({
-          message: "The task was not found.",
-        });
-      }
-      
-      return res.status(200).json(task);
-    } catch (err) {
-      if (err.code === "P2025") {
-        return res.status(404).json({
-          message: "The task was not found.",
-        });
-      }
+    if (!task) {
+      return res.status(404).json({
+        message: "The task was not found.",
+      });
+    }
+
+    return res.status(200).json(task);
+  } catch (err) {
     return next(err);
   }
 }
 
 async function update(req, res, next) {
-    const { error, value } = patchTaskSchema.validate(
-      req.body || {},
-      {
-        abortEarly: false,
-        stripUnknown: true,
-      });
+  const id = Number(req.params.id);
 
-    if (error) {
-      return res.status(400).json({
-        message: "Validation failed",
-        details: error.details,
-      });
-    }
-
-    const id = Number(req.params.id);
-
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({
-        message: "Invalid task id",
-      });
-    }
-
-    try {
-      const task = await prisma.task.update({
-        data: value,
-        where: {
-          id,
-          userId: global.user_id,
-        },
-        select: {
-          title: true,
-          isCompleted: true,
-          id: true,
-        },
-      });
-      
-      return res.status(200).json(task);
-    } catch (err) {
-      if (err.code === "P2025") {
-        return res.status(404).json({
-          message: "The task was not found.",
-        });
-      }
-    return next(err);
-    }
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({
+      message: "Invalid task id",
+    });
   }
 
-async function deleteTask(req, res, next) {
-    const id = Number(req.params.id);
+  const { error, value } = patchTaskSchema.validate(req.body || {}, {
+    abortEarly: false,
+    stripUnknown: true,
+  });
 
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({
-        message: "Invalid task id",
-      });
-    }
+  if (error) {
+    return res.status(400).json({
+      message: "Validation failed",
+      details: error.details,
+    });
+  }
 
-    try {
-      const task = await prisma.task.delete({
-        where: {
+  try {
+    const task = await prisma.task.update({
+      where: {
+        id_userId: {
           id,
           userId: global.user_id,
         },
-        select: {
-          id: true,
-          title: true,
-          isCompleted: true,
-        },
+      },
+      data: value,
+      select: {
+        id: true,
+        title: true,
+        isCompleted: true,
+        priority: true,
+      },
+    });
+
+    return res.status(200).json(task);
+  } catch (err) {
+    if (err.code === "P2025") {
+      return res.status(404).json({
+        message: "The task was not found.",
       });
-      
-      return res.status(200).json(task);
-    } catch (err) {
-      if (err.code === "P2025") {
-        return res.status(404).json({
-          message: "The task was not found.",
-        });
-      }
+    }
+
+    return next(err);
+  }
+}
+
+async function deleteTask(req, res, next) {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({
+      message: "Invalid task id",
+    });
+  }
+
+  try {
+    const task = await prisma.task.delete({
+      where: {
+        id_userId: {
+          id,
+          userId: global.user_id,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        isCompleted: true,
+        priority: true,
+      },
+    });
+
+    return res.status(200).json(task);
+  } catch (err) {
+    if (err.code === "P2025") {
+      return res.status(404).json({
+        message: "The task was not found.",
+      });
+    }
+
     return next(err);
   }
 }
@@ -188,4 +306,5 @@ module.exports = {
   show,
   update,
   deleteTask,
+  bulkCreate,
 };
