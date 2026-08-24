@@ -25,7 +25,7 @@ async function create(req, res, next) {
         title: value.title,
         isCompleted: value.isCompleted,
         priority: value.priority,
-        userId: global.user_id,
+        userId: req.user.id,
       },
       select: {
         id: true,
@@ -64,7 +64,7 @@ async function index(req, res, next) {
 
     // Only get tasks belonging to the logged-in user
     const whereClause = {
-      userId: global.user_id,
+      userId: req.user.id,
     };
 
     // Optional title search
@@ -148,7 +148,7 @@ async function bulkCreate(req, res, next) {
       title: value.title,
       isCompleted: value.isCompleted || false,
       priority: value.priority || "medium",
-      userId: global.user_id
+      userId: req.user.id
     });
   }
 
@@ -183,7 +183,7 @@ async function show(req, res, next) {
       where: {
         id_userId: {
           id,
-          userId: global.user_id,
+          userId: req.user.id,
         },
       },
       select: {
@@ -239,7 +239,7 @@ async function update(req, res, next) {
       where: {
         id_userId: {
           id,
-          userId: global.user_id,
+          userId: req.user.id,
         },
       },
       data: value,
@@ -277,7 +277,7 @@ async function deleteTask(req, res, next) {
       where: {
         id_userId: {
           id,
-          userId: global.user_id,
+          userId: req.user.id,
         },
       },
       select: {

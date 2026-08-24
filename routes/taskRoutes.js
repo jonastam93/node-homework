@@ -1,9 +1,12 @@
 const express = require("express");
 
 const taskController = require("../controllers/taskController");
-const auth = require("../middleware/auth");
 
 const router = express.Router();
+
+const jwtMiddleware = require("../middleware/jwtMiddleware");
+
+router.use(jwtMiddleware);
 
 // Bulk task creation
 router.post("/bulk", taskController.bulkCreate);
