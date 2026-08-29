@@ -2,6 +2,25 @@ const { userSchema } = require("../validation/userSchema");
 const crypto = require("crypto");
 const util = require("util");
 const prisma = require("../db/prisma");
+const { randomUUID } = require("crypto");
+const jwt = require("jsonwebtoken");
+
+const cookieFlags = (req) => {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // only when HTTPS is available
+    sameSite: "Strict",
+  };
+};
+
+const setJwtCookie = (req, res, user) => {
+  // Sign JWT
+  const payload = { id: user.id, csrfToken: randomUUID() };
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" }); // 1 hour expiration
+  // Set cookie
+  res.cookie("jwt", token, { ...cookieFlags(req), maxAge: 3600000 }); // 1 hour expiration
+  return payload.csrfToken;
+};
 
 const scrypt = util.promisify(crypto.scrypt);
 
@@ -121,12 +140,13 @@ async function register(req, res, next) {
       };
     });
 
-    global.user_id = result.user.id;
+    const csrfToken = setJwtCookie(req, res, result.user);
 
     return res.status(201).json({
       user: result.user,
       welcomeTasks: result.welcomeTasks,
       transactionStatus: "success",
+      csrfToken,
     });
   } catch (err) {
     if (err.code === "P2002") {
@@ -141,12 +161,20 @@ async function register(req, res, next) {
 
 async function logon(req, res, next) {
   try {
-    let { email, password } = req.body;
+    const { email, password } = req.body || {};
 
-    email = email.toLowerCase();
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase();
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: {
+        email: normalizedEmail,
+      },
       select: {
         id: true,
         name: true,
@@ -172,11 +200,12 @@ async function logon(req, res, next) {
       });
     }
 
-    global.user_id = user.id;
+    const csrfToken = setJwtCookie(req, res, user);
 
     return res.status(200).json({
       name: user.name,
       email: user.email,
+      csrfToken,
     });
   } catch (error) {
     return next(error);
@@ -184,9 +213,11 @@ async function logon(req, res, next) {
 }
 
 function logoff(req, res) {
-  global.user_id = null;
+  res.clearCookie("jwt", cookieFlags(req));
 
-  return res.status(200).json({});
+  return res.status(200).json({
+    message: "Logged off.",
+  });
 }
 
 module.exports = {

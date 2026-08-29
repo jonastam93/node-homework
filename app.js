@@ -6,15 +6,35 @@ const analyticsRoutes = require("./routes/analyticsRoutes");
 
 const notFound = require("./middleware/not-found");
 const errorHandler = require("./middleware/error-handler");
-const authMiddleware = require("./middleware/auth");
 const prisma = require("./db/prisma");
+
+const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
+const { xss } = require("express-xss-sanitizer");
+const rateLimiter = require("express-rate-limit");
 
 const app = express();
 
-global.user_id = null;
+app.set("trust proxy", 1);
+
+app.use(
+  rateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+  }),
+);
+
+// Security Headers
+app.use(helmet());
+
+// Parse Cookies
+app.use(cookieParser());
 
 // Parse JSON
 app.use(express.json());
+
+// XSS Protection
+app.use(xss());
 
 // Health check
 app.get("/health", async (req, res) => {
@@ -36,10 +56,8 @@ app.get("/health", async (req, res) => {
 
 // Routes
 app.use("/api/users", userRouter);
-
-app.use("/api/tasks", authMiddleware, taskRouter);
-
-app.use("/api/analytics", authMiddleware, analyticsRoutes);
+app.use("/api/tasks", taskRouter);
+app.use("/api/analytics", analyticsRoutes);
 
 // 404 middleware
 app.use(notFound);
