@@ -98,6 +98,12 @@ async function index(req, res, next) {
       },
     });
 
+    if (tasks.length === 0) {
+      return res.status(404).json({
+        message: "No tasks found for user"
+      });
+    }
+
     // Count only tasks matching the same filter
     const totalTasks = await prisma.task.count({
       where: whereClause,

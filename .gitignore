@@ -4,6 +4,7 @@
 node_modules/
 npm-debug.log*
 package-lock.json
+coverage/
 
 # ===========================================
 # Environment Variables
@@ -20,5 +21,3 @@ package-lock.json
 # ===========================================
 .DS_Store
 .DS_Store?
-
-/generated/prisma
