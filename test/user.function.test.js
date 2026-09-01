@@ -57,10 +57,10 @@ describe("login and logout", () => {
     expect(saveRes.status).toBe(200);
   });
 
-  it("50. /api/tasks does not return a 401 when logged in", async () => {
+  it("50. /api/tasks returns 200 when logged in", async () => {
     saveRes = await agent.get("/api/tasks");
 
-    expect(saveRes.status).not.toBe(401);
+    expect(saveRes.status).toBe(200);
   });
 
   it("51. can log out", async () => {

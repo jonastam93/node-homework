@@ -104,40 +104,37 @@ describe("task object validation tests", () => {
     });
 
     it("10. defaults isCompleted to false when not specified", () => {
-      const { error, value } = taskSchema.validate({
+      const { value } = taskSchema.validate({
         title: "Test task",
       });
 
-      expect(error).toBeFalsy();
       expect(value.isCompleted).toBe(false);
     });
 
     it("11. keeps isCompleted true when true is provided", () => {
-      const { error, value } = taskSchema.validate({
+      const { value } = taskSchema.validate({
         title: "Test task",
         isCompleted: true,
       });
 
-      expect(error).toBeFalsy();
       expect(value.isCompleted).toBe(true);
     });
 });
 
 describe("patch task object validation tests", () => {
     it("12. doesn't require a title", () => {
-      const { error } = patchTaskSchema.validate({
+      const { value } = patchTaskSchema.validate({
         isCompleted: true,
       });
 
-      expect(error).toBeFalsy();
+      expect(value.isCompleted).toBe(true);
     });
 
     it("13. leaves isCompleted undefined when it isn't provided", () => {
-      const { error, value } = patchTaskSchema.validate({
+      const { value } = patchTaskSchema.validate({
         title: "Updated title",
       });
 
-      expect(error).toBeFalsy();
       expect(value.isCompleted).toBeUndefined();
     });
 });

@@ -94,7 +94,7 @@ describe("testing task creation", () => {
   it("16. creates a task with a valid user id", async () => {
     const req = httpMocks.createRequest({
       method: "POST",
-      body: { title: "first task "},
+      body: { title: "first task" },
     });
 
     req.user = {
