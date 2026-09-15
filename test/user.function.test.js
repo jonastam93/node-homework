@@ -31,7 +31,7 @@ describe("register a user", () => {
       password: "Pa$$word20",
     };
     saveRes = await agent
-       .post("/user/register")
+       .post("/api/users/register")
        .set("X-Recaptcha-Test", process.env.RECAPTCHA_BYPASS)
        .send(newUser);
     
@@ -52,13 +52,16 @@ describe("register a user", () => {
 describe("login and logout", () => {
   it("49. can logon as the newly registered user", async () => {
     saveRes = await agent
-      .post("/user/logon")
+      .post("/api/users/logon")
       .send({
         email: "jdeere@example.com",
         password: "Pa$$word20",
       });
 
     expect(saveRes.status).toBe(200);
+
+    // Logon creates a new CSRF token, so use that token for logout.
+    csrfToken = saveRes.body.csrfToken;
   });
 
   it("50. /api/tasks returns 200 when logged in", async () => {
@@ -69,7 +72,7 @@ describe("login and logout", () => {
 
   it("51. can log out", async () => {
     saveRes = await agent
-      .post("/user/logoff")
+      .post("/api/users/logoff")
       .set("X-CSRF-TOKEN", csrfToken);
 
     expect(saveRes.status).toBe(200);
