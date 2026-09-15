@@ -1,2 +1,16 @@
 https://node-homework-jonastam93.onrender.com
-I added Open Authorization with Google for my project app.
+
+I added Open Authorization (OAuth) with Google for my project app.
+
+New API:
+POST /api/users/googleLogon
+
+Request body:
+{
+"authorizationCode": "authorization-code-from-google"
+}
+
+Query parameters:
+None.
+
+The endpoint authenticates the Google user, creates the user record if needed, sets the JWT session cookie, and returns the user's name, email, and csrfToken.
