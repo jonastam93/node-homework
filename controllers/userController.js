@@ -5,6 +5,12 @@ const prisma = require("../db/prisma");
 const { randomUUID } = require("crypto");
 const jwt = require("jsonwebtoken");
 const { StatusCodes } = require("http-status-codes");
+const { OAuth2Client } = require("google-auth-library");
+
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET
+);
 
 const cookieFlags = (req) => {
   return {
@@ -253,6 +259,69 @@ async function logon(req, res, next) {
   }
 }
 
+async function googleLogon(req, res, next) {
+  try {
+    const { authorizationCode } = req.body || {};
+
+    if (!authorizationCode) {
+      return res.status(400).json({
+        message: "Authorization code is required",
+      });
+    }
+
+    const { tokens } = await googleClient.getToken({
+      code: authorizationCode,
+      redirect_uri: "http://localhost:3001",
+    });
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    const name = payload.name;
+    const email = payload.email.toLowerCase();
+
+    let user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name,
+          hashedPassword: "OAUTH_USER",
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+    }
+
+    const csrfToken = setJwtCookie(req, res, user);
+
+    return res.status(200).json({
+      name: user.name,
+      email: user.email,
+      csrfToken,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 function logoff(req, res) {
   res.clearCookie("jwt", cookieFlags(req));
 
@@ -264,5 +333,6 @@ function logoff(req, res) {
 module.exports = {
   register,
   logon,
+  googleLogon,
   logoff,
 };
