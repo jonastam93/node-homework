@@ -55,7 +55,6 @@ app.get("/health", async (req, res) => {
 });
 
 // Routes
-app.use("/user", userRouter);
 app.use("/api/users", userRouter);
 app.use("/api/tasks", taskRouter);
 app.use("/api/analytics", analyticsRoutes);
