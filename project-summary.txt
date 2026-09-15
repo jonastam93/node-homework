@@ -1,16 +1,453 @@
+# Project Summary
+
+Project: Todo List Application
+
+Deployed Application:
 https://node-homework-jonastam93.onrender.com
 
-I added Open Authorization (OAuth) with Google for my project app.
+## Application Overview
 
-New API:
+This project is a Todo List application built with a Node.js and Express backend, PostgreSQL database using Prisma ORM, and REST APIs.
+
+Users can register, log in, create and manage tasks, search and filter tasks, view task analytics, create multiple tasks at once, and log in using Google OAuth.
+
+## Technologies
+
+### Backend
+
+* Node.js
+* Express
+* Prisma ORM
+* PostgreSQL
+* Joi validation
+* JSON Web Tokens (JWT)
+* Google OAuth
+* Google reCAPTCHA
+* Helmet
+* Express rate limiting
+* XSS sanitization
+
+### Database and Deployment
+
+* PostgreSQL
+* Prisma ORM
+* Neon PostgreSQL
+* Render
+
+## Authentication and Security
+
+The application includes:
+
+* User registration
+* User login and logout
+* Password hashing using scrypt
+* JWT authentication
+* HttpOnly authentication cookies
+* SameSite cookie protection
+* Secure cookies in production
+* CSRF token support
+* Protected task routes
+* Joi input validation
+* Google OAuth authentication
+* Google reCAPTCHA during registration
+* Helmet security headers
+* Express rate limiting
+* XSS input sanitization
+
+## Extra Features
+
+### 1. Google OAuth
+
+Users can log in using their Google account.
+
+API:
+
 POST /api/users/googleLogon
 
 Request body:
+
 {
 "authorizationCode": "authorization-code-from-google"
 }
 
 Query parameters:
-None.
+
+None
 
 The endpoint authenticates the Google user, creates the user record if needed, sets the JWT session cookie, and returns the user's name, email, and csrfToken.
+
+### 2. Task Pagination and Filtering
+
+The task list supports pagination and case-insensitive title searching.
+
+API:
+
+GET /api/tasks
+
+Query parameters:
+
+* page - page number; defaults to 1
+* limit - number of tasks per page; defaults to 10 and has a maximum of 100
+* find - searches task titles case-insensitively
+
+Example:
+
+GET /api/tasks?page=1&limit=10&find=home
+
+The response includes the tasks and pagination information.
+
+### 3. Task Analytics
+
+The application provides task and user analytics using Prisma aggregation queries.
+
+Analytics include:
+
+* Completed versus incomplete task statistics
+* Recent tasks
+* Seven-day task progress
+* User task counts
+* Incomplete tasks for users
+
+### 4. Bulk Task Creation
+
+Multiple tasks can be created with a single API request.
+
+API:
+
+POST /api/tasks/bulk
+
+Request body:
+
+{
+"tasks": [
+{
+"title": "Finish homework",
+"isCompleted": false,
+"priority": "high"
+},
+{
+"title": "Go grocery shopping",
+"isCompleted": false,
+"priority": "medium"
+}
+]
+}
+
+Query parameters:
+
+None
+
+The endpoint validates each task and creates the requested tasks for the authenticated user.
+
+## REST API Documentation
+
+## USER AUTHENTICATION
+
+### Register User
+
+POST /api/users/register
+
+Creates a new user account.
+
+Request body:
+
+{
+"name": "Example User",
+"email": "example@email.com",
+"password": "password"
+}
+
+Query parameters:
+
+None
+
+### Logon
+
+POST /api/users/logon
+
+Authenticates an existing user and creates a JWT session.
+
+Request body:
+
+{
+"email": "example@email.com",
+"password": "password"
+}
+
+Query parameters:
+
+None
+
+### Google Logon
+
+POST /api/users/googleLogon
+
+Authenticates a user using Google OAuth.
+
+Request body:
+
+{
+"authorizationCode": "authorization-code-from-google"
+}
+
+Query parameters:
+
+None
+
+### Logoff
+
+POST /api/users/logoff
+
+Logs the authenticated user out.
+
+Request body:
+
+None
+
+Query parameters:
+
+None
+
+## TASK APIs
+
+### Create Task
+
+POST /api/tasks
+
+Creates a task for the authenticated user.
+
+Request body:
+
+{
+"title": "Finish homework",
+"isCompleted": false,
+"priority": "medium"
+}
+
+Query parameters:
+
+None
+
+Returns the created task.
+
+### List Tasks
+
+GET /api/tasks
+
+Returns tasks belonging to the authenticated user.
+
+Query parameters:
+
+* page - page number; default 1
+* limit - number of results; default 10, maximum 100
+* find - case-insensitive search of task titles
+
+Example:
+
+GET /api/tasks?page=1&limit=10&find=home
+
+Response includes:
+
+* tasks
+* pagination
+
+### Get One Task
+
+GET /api/tasks/:id
+
+Returns one task belonging to the authenticated user.
+
+Path parameter:
+
+* id - task ID
+
+Request body:
+
+None
+
+Query parameters:
+
+None
+
+### Update Task
+
+PATCH /api/tasks/:id
+
+Updates a task belonging to the authenticated user.
+
+Path parameter:
+
+* id - task ID
+
+Request body may include:
+
+{
+"title": "Updated task",
+"isCompleted": true,
+"priority": "high"
+}
+
+Query parameters:
+
+None
+
+### Delete Task
+
+DELETE /api/tasks/:id
+
+Deletes a task belonging to the authenticated user.
+
+Path parameter:
+
+* id - task ID
+
+Request body:
+
+None
+
+Query parameters:
+
+None
+
+### Bulk Create Tasks
+
+POST /api/tasks/bulk
+
+Creates multiple tasks for the authenticated user.
+
+Request body:
+
+{
+"tasks": [
+{
+"title": "Task one",
+"isCompleted": false,
+"priority": "medium"
+},
+{
+"title": "Task two",
+"isCompleted": false,
+"priority": "high"
+}
+]
+}
+
+Query parameters:
+
+None
+
+Response includes:
+
+* message
+* tasksCreated
+* totalRequested
+
+## ANALYTICS APIs
+
+### User Analytics
+
+GET /api/analytics/users/:id
+
+Returns analytics for a specific user.
+
+Path parameter:
+
+* id - user ID
+
+Request body:
+
+None
+
+Query parameters:
+
+None
+
+Response includes:
+
+* taskStats - task counts grouped by completion status.
+* recentTasks - the user's 10 most recently created tasks, including task details and the associated user's name.
+* weeklyProgress - daily task counts for tasks created during the previous seven days, grouped by calendar day.
+
+### Users With Statistics
+
+GET /api/analytics/users
+
+Returns users with task statistics.
+
+Query parameters:
+
+* page - page number; defaults to 1
+* limit - number of users per page; defaults to 10 and has a maximum of 100
+
+Example:
+
+GET /api/analytics/users?page=1&limit=10
+
+Response includes:
+
+* users
+* pagination
+
+Each user includes task count information and up to five incomplete tasks.
+
+### Task Search
+
+GET /api/analytics/tasks/search
+
+Searches tasks using PostgreSQL raw SQL and ILIKE.
+
+Query parameters:
+
+* q - search text; required and must contain at least 2 characters
+* limit - maximum number of results; defaults to 20 and has a maximum of 100
+
+Example:
+
+GET /api/analytics/tasks/search?q=home&limit=20
+
+The search checks both task titles and user names.
+
+Results are ranked so that:
+
+1. Exact title matches appear first
+2. Titles starting with the search term appear next
+3. Partial matches follow
+
+The search results use a flat response structure. The associated user's name is returned as `user_name` rather than as a nested user object.
+
+Example result:
+
+{
+"id": 1,
+"title": "Finish homework",
+"user_id": 3,
+"user_name": "Example User"
+}
+
+The overall response includes:
+
+* results
+* query
+* count
+
+## DATABASE AND DEPLOYMENT
+
+The application uses PostgreSQL with Prisma ORM.
+
+The production PostgreSQL database is hosted on Neon.
+
+The backend application is deployed to Render.
+
+Prisma database migrations are deployed during the Render build process using:
+
+npx prisma migrate deploy
+
+The deployed application is available at:
+
+https://node-homework-jonastam93.onrender.com
+
+## PROJECT LEARNING
+
+Through this project I learned how to build and deploy a backend application using Node.js, Express, Prisma, PostgreSQL, authentication, REST APIs, security middleware, and cloud services.
+
+I learned how to use Prisma database migrations, protect API routes with JWT authentication, validate user input, implement Google OAuth, use PostgreSQL queries for searching and analytics, and deploy a PostgreSQL database to Neon and an Express application to Render.
