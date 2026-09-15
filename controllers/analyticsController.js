@@ -57,14 +57,16 @@ async function getUserAnalytics(req, res, next) {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-        const weeklyProgress = await  prisma.task.groupBy({
-            by: ["createdAt"],
-            where: {
-                userId,
-                createdAt: { gte: oneWeekAgo }
-            },
-            _count: { id: true }
-        });
+        const weeklyProgress = await prisma.$queryRaw`
+          SELECT
+              DATE_TRUNC('day', created_at) AS date,
+              COUNT(*)::int AS count
+          FROM tasks
+          WHERE user_id = ${userId}
+            AND created_at >= ${oneWeekAgo}
+          GROUP BY DATE_TRUNC('day', created_at)
+          ORDER BY date ASC
+      `;
 
         // Return response with taskStats, recentTasks, and weeklyProgress
         res.status(200).json({
